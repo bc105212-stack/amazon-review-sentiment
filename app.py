@@ -7,8 +7,8 @@ import random
 def load_sentiment():
     # 使用卡迪夫大学的 RoBERTa 模型，输出 label: negative, neutral, positive
     return pipeline("sentiment-analysis", 
-                    model="cardiffnlp/twitter-roberta-base-sentiment-latest",
-                    tokenizer="cardiffnlp/twitter-roberta-base-sentiment-latest")
+                    model="EBSQ/amazon-sentiment-distilbert",
+                    tokenizer="EBSQ/amazon-sentiment-distilbert")
 
 # 回复模板（仍然用模板，保证回复质量）
 REPLY_TEMPLATES = {
