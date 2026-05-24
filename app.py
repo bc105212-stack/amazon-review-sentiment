@@ -6,7 +6,7 @@ import random
 # ------------------ 1. 加载情感分类模型 ------------------
 @st.cache_resource
 def load_sentiment():
-    model_name = "your_username/amazon-sentiment-distilbert"   # 替换为你的模型
+    model_name = "EBSQ/amazon-sentiment-distilbert"   # 替换为你的模型
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     model = AutoModelForSequenceClassification.from_pretrained(model_name)
     return tokenizer, model
