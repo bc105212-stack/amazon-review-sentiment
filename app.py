@@ -3,7 +3,6 @@ import torch
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 from transformers import AutoTokenizer as T5Tokenizer, AutoModelForSeq2SeqLM
 
-# Cache sentiment model
 @st.cache_resource
 def load_sentiment():
     model_name = "EBSQ/amazon-sentiment-distilbert"
@@ -11,7 +10,6 @@ def load_sentiment():
     model = AutoModelForSequenceClassification.from_pretrained(model_name)
     return tokenizer, model
 
-# Cache T5 model
 @st.cache_resource
 def load_t5():
     tokenizer = T5Tokenizer.from_pretrained("t5-small")
@@ -36,13 +34,21 @@ if st.button("Analyze & Generate Reply"):
             label_map = {0: "😞 Negative", 1: "😊 Positive"}
             st.info(f"**Sentiment:** {label_map[pred]}")
 
-            # Generate reply using T5-small
+            # Generate reply with improved prompt
             t5_tok, t5_model = load_t5()
-            sentiment_word = ["negative", "positive"][pred]
-            prompt = f"Generate a customer service reply for a {sentiment_word} review: {review}"
+            prompt = f"Customer review: {review}\nCustomer service reply:"
             inputs_t5 = t5_tok(prompt, return_tensors="pt", truncation=True, max_length=512)
-            outputs_t5 = t5_model.generate(inputs_t5["input_ids"], max_length=80, do_sample=False)
+            outputs_t5 = t5_model.generate(
+                inputs_t5["input_ids"],
+                max_length=80,
+                num_beams=4,
+                early_stopping=True,
+                do_sample=False
+            )
             reply = t5_tok.decode(outputs_t5[0], skip_special_tokens=True)
+            # Clean up if model repeats the prompt
+            if reply.startswith("Customer service reply:"):
+                reply = reply.replace("Customer service reply:", "").strip()
             st.success(f"**Suggested Reply:** {reply}")
     else:
         st.warning("Please enter a review.")
