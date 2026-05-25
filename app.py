@@ -1,38 +1,23 @@
 import streamlit as st
-from transformers import pipeline
-import random
+import torch
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
+from transformers import AutoTokenizer as T5Tokenizer, AutoModelForSeq2SeqLM
 
-# 使用预训练的情感分析模型（三分类）
+# Cache sentiment model
 @st.cache_resource
-def load_sentiment():
-    # 使用卡迪夫大学的 RoBERTa 模型，输出 label: negative, neutral, positive
-    return pipeline("sentiment-analysis", 
-                    model="EBSQ/amazon-sentiment-distilbert",
-                    tokenizer="EBSQ/amazon-sentiment-distilbert")
+def load_sentiment_model():
+    model_name = "EBSQ/amazon-sentiment-distilbert"
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    model = AutoModelForSequenceClassification.from_pretrained(model_name)
+    return tokenizer, model
 
-# 回复模板（仍然用模板，保证回复质量）
-REPLY_TEMPLATES = {
-    "negative": [
-        "We sincerely apologize for your bad experience. Please contact our support for a refund or replacement.",
-        "Thank you for your feedback. We are sorry to hear that. We will improve our product quality.",
-        "We regret that you faced an issue. Please share your order details so we can assist you."
-    ],
-    "neutral": [
-        "Thank you for your feedback. We will continue to improve our product.",
-        "We appreciate your review. Let us know if you have any suggestions."
-    ],
-    "positive": [
-        "Thank you for your positive review! We are glad you enjoyed our product.",
-        "Great to hear you liked it! Your satisfaction is our priority.",
-        "Thanks for your kind words! We look forward to serving you again."
-    ]
-}
+# Cache T5 model
+@st.cache_resource
+def load_t5_model():
+    tokenizer = T5Tokenizer.from_pretrained("t5-small")
+    model = AutoModelForSeq2SeqLM.from_pretrained("t5-small")
+    return tokenizer, model
 
-def generate_reply(sentiment):
-    """根据情感标签返回一条随机客服回复"""
-    return random.choice(REPLY_TEMPLATES.get(sentiment, REPLY_TEMPLATES["neutral"]))
-
-# Streamlit UI
 st.set_page_config(page_title="ShopEase AI Assistant", layout="centered")
 st.title("🛍️ ShopEase Review Sentiment & Auto Reply")
 st.markdown("Enter a customer review below to get sentiment analysis and a suggested reply.")
@@ -42,18 +27,22 @@ review = st.text_area("Customer Review:", height=150)
 if st.button("Analyze & Generate Reply"):
     if review.strip():
         with st.spinner("Analyzing..."):
-            sentiment_pipe = load_sentiment()
-            # 注意：该模型返回格式 [{'label': 'negative', 'score': 0.99}]
-            result = sentiment_pipe(review)[0]
-            sentiment = result['label']   # 'negative', 'neutral', 'positive'
-            score = result['score']
-            
-            # 显示结果
-            emoji = {"negative": "😞", "neutral": "😐", "positive": "😊"}
-            st.info(f"**Sentiment:** {emoji[sentiment]} {sentiment.capitalize()} (confidence: {score:.2f})")
-            
-            # 生成回复
-            reply = generate_reply(sentiment)
+            # Sentiment analysis
+            tok, model = load_sentiment_model()
+            inputs = tok(review, return_tensors="pt", truncation=True, max_length=512)
+            with torch.no_grad():
+                outputs = model(**inputs)
+            pred = torch.argmax(outputs.logits, dim=-1).item()
+            label_map = {0: "😞 Negative", 1: "😊 Positive"}
+            st.info(f"**Sentiment:** {label_map[pred]}")
+
+            # Generate reply
+            t5_tok, t5_model = load_t5_model()
+            sentiment_word = "negative" if pred == 0 else "positive"
+            prompt = f"Generate a customer service reply for a {sentiment_word} review: {review}"
+            inputs_t5 = t5_tok(prompt, return_tensors="pt", truncation=True, max_length=512)
+            outputs_t5 = t5_model.generate(inputs_t5["input_ids"], max_length=80, do_sample=False)
+            reply = t5_tok.decode(outputs_t5[0], skip_special_tokens=True)
             st.success(f"**Suggested Reply:** {reply}")
     else:
         st.warning("Please enter a review.")
