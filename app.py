@@ -15,7 +15,7 @@ NEGATIVE_PHRASES = [
     "very bad", "extremely bad", "trash", "garbage", "avoid"
 ]
 
-def is_negative_text(text):
+def is_obviously_negative(text):
     text_lower = text.lower()
     for phrase in NEGATIVE_PHRASES:
         if phrase in text_lower:
