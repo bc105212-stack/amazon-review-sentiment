@@ -9,8 +9,10 @@ REPLY_TEMPLATES = {
 }
 
 NEGATIVE_PHRASES = [
-    "bad", "terrible", "awful", "horrible", "worst", "useless", "disappointing", "broke", "defective", "waste", "doesn't work", "not good",
-    "poor", "don't like", "do not like", "hate", "dislike", "not worth", "very bad", "extremely bad", "trash", "garbage", "avoid"
+    "bad", "terrible", "awful", "horrible", "worst", "useless", "disappointing",
+    "poor quality", "broke", "defective", "waste", "doesn't work", "not good",
+    "poor", "don't like", "do not like", "hate", "dislike", "not worth",
+    "very bad", "extremely bad", "trash", "garbage", "avoid"
 ]
 
 def is_negative_text(text):
