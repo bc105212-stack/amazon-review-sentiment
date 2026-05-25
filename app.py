@@ -1,51 +1,81 @@
 import streamlit as st
 import torch
-from transformers import pipeline
+from transformers import AutoTokenizer, AutoModelForSequenceClassification
+from transformers import AutoTokenizer as T5Tokenizer, AutoModelForSeq2SeqLM
 
-# Load sentiment analysis pipeline (your fine-tuned model)
+REPLY_TEMPLATES = {
+    "negative": "We are very sorry to hear about your experience. Our customer support team is here to help. Please contact us at support@shopease.com and we will resolve the issue promptly.",
+    "positive": "Thank you for your positive feedback! We are delighted that you enjoyed the product. Your satisfaction is our top priority."
+}
+
+NEGATIVE_KEYWORDS = ["bad", "terrible", "awful", "horrible", "worst", "useless", "disappointing", "poor quality", "broke", "defective", "waste", "doesn't work", "not good", "poor"]
+
+def is_obviously_negative(text):
+    text_lower = text.lower()
+    return any(keyword in text_lower for keyword in NEGATIVE_KEYWORDS)
+
 @st.cache_resource
 def load_sentiment():
-    return pipeline("text-classification", model="EBSQ/amazon-sentiment-distilbert")
+    model_name = "EBSQ/amazon-sentiment-distilbert"
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    model = AutoModelForSequenceClassification.from_pretrained(model_name)
+    return tokenizer, model
 
-# Load text generation pipeline (small GPT-2 model)
 @st.cache_resource
-def load_generator():
-    return pipeline("text-generation", model="distilgpt2")
-
-# Predefined completion suffixes
-POSITIVE_SUFFIX = " We are happy you liked it. Thank you for shopping with us!"
-NEGATIVE_SUFFIX = " We apologize for the inconvenience. Please contact our support team for assistance."
+def load_t5():
+    tokenizer = T5Tokenizer.from_pretrained("t5-small")
+    model = AutoModelForSeq2SeqLM.from_pretrained("t5-small")
+    return tokenizer, model
 
 st.set_page_config(page_title="ShopEase AI Assistant", layout="centered")
 st.title("🛍️ ShopEase Review Sentiment & Auto Reply")
-st.markdown("Enter a customer review below to get sentiment analysis and a generated reply.")
+st.markdown("Enter a customer review below to get sentiment analysis and a suggested reply.")
 
 review = st.text_area("Customer Review:", height=150)
 
 if st.button("Analyze & Generate Reply"):
     if review.strip():
-        with st.spinner("Analyzing sentiment..."):
-            sentiment = load_sentiment()
-            result = sentiment(review, truncation=True, max_length=512)[0]
-            label = result['label']  # e.g., LABEL_0 or LABEL_1
-            score = result['score']
-            sentiment_label = "Negative" if "LABEL_0" in label else "Positive"
-            st.info(f"**Sentiment:** {sentiment_label} (confidence: {score:.2f})")
+        with st.spinner("Analyzing..."):
 
-            # Generate a short response using distilgpt2
-            generator = load_generator()
-            if "LABEL_0" in label:
-                prompt = "Sorry"
+            if is_obviously_negative(review):
+                sentiment_label = "negative"
+                confidence = 0.99
+                st.info(f"**Sentiment:** 😞 Negative (rule-based, confidence: {confidence:.2f})")
             else:
-                prompt = "Thank you"
-            # Generate a few tokens
-            gen_output = generator(prompt, max_new_tokens=5, do_sample=True, temperature=0.7, pad_token_id=50256)
-            short_reply = gen_output[0]['generated_text'].strip()
-            # Combine with suffix
-            if "LABEL_0" in label:
-                full_reply = short_reply + NEGATIVE_SUFFIX
-            else:
-                full_reply = short_reply + POSITIVE_SUFFIX
+                tokenizer, model = load_sentiment()
+                inputs = tokenizer(review, return_tensors="pt", truncation=True, max_length=512)
+                with torch.no_grad():
+                    outputs = model(**inputs)
+                probs = torch.softmax(outputs.logits, dim=-1)
+                pred = torch.argmax(probs, dim=-1).item()
+                confidence = probs[0, pred].item()
+                sentiment_label = "negative" if pred == 0 else "positive"
+
+                if sentiment_label == "positive" and confidence > 0.9 and is_obviously_negative(review):
+                    sentiment_label = "negative"
+                    confidence = 0.95
+                    st.info(f"**Sentiment:** 😞 Negative (corrected, confidence: {confidence:.2f})")
+                else:
+                    emoji = "😞" if sentiment_label == "negative" else "😊"
+                    st.info(f"**Sentiment:** {emoji} {sentiment_label.capitalize()} (confidence: {confidence:.2f})")
+            
+            t5_tokenizer, t5_model = load_t5()
+
+            prompt = "Reply very short with one word: " + sentiment_label
+            inputs_t5 = t5_tokenizer(prompt, return_tensors="pt", truncation=True, max_length=32)
+            with torch.no_grad():
+                outputs_t5 = t5_model.generate(
+                    inputs_t5["input_ids"],
+                    max_length=5,
+                    num_beams=2,
+                    early_stopping=True
+                )
+            short_reply = t5_tokenizer.decode(outputs_t5[0], skip_special_tokens=True).strip()
+
+            if len(short_reply) > 10 or not short_reply:
+                short_reply = "Thanks" if sentiment_label == "positive" else "Sorry"
+
+            full_reply = f"{short_reply}! {REPLY_TEMPLATES[sentiment_label]}"
             st.success(f"**Suggested Reply:** {full_reply}")
     else:
         st.warning("Please enter a review.")
