@@ -4,8 +4,8 @@ from transformers import AutoTokenizer, AutoModelForSequenceClassification
 from transformers import AutoTokenizer as T5Tokenizer, AutoModelForSeq2SeqLM
 
 REPLY_TEMPLATES = {
-    "negative": "We are very sorry to hear about your experience. Our customer support team is here to help. Please contact us at support@shopease.com and we will resolve the issue promptly.",
-    "positive": "Thank you for your positive feedback! We are delighted that you enjoyed the product. Your satisfaction is our top priority."
+    "negative": "We value your feedback. Our customer support team is ready to assist you. Please reach out to support@shopease.com, and we will resolve the issue as quickly as possible.",
+    "positive": "We are thrilled that you had a great experience. Your satisfaction means the world to us. We look forward to serving you again!"
 }
 
 NEGATIVE_KEYWORDS = ["bad", "terrible", "awful", "horrible", "worst", "useless", "disappointing", "poor quality", "broke", "defective", "waste", "doesn't work", "not good", "poor"]
