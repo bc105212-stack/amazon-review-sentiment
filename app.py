@@ -8,11 +8,17 @@ REPLY_TEMPLATES = {
     "positive": "We are thrilled that you had a great experience. Your satisfaction means the world to us. We look forward to serving you again!"
 }
 
-NEGATIVE_KEYWORDS = ["bad", "terrible", "awful", "horrible", "worst", "useless", "disappointing", "poor quality", "broke", "defective", "waste", "doesn't work", "not good", "poor"]
+NEGATIVE_PHRASES = [
+    "bad", "terrible", "awful", "horrible", "worst", "useless", "disappointing", "broke", "defective", "waste", "doesn't work", "not good",
+    "poor", "don't like", "do not like", "hate", "dislike", "not worth", "very bad", "extremely bad", "trash", "garbage", "avoid"
+]
 
-def is_obviously_negative(text):
+def is_negative_text(text):
     text_lower = text.lower()
-    return any(keyword in text_lower for keyword in NEGATIVE_KEYWORDS)
+    for phrase in NEGATIVE_PHRASES:
+        if phrase in text_lower:
+            return True
+    return False
 
 @st.cache_resource
 def load_sentiment():
